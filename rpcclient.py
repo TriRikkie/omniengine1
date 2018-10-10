@@ -7,13 +7,13 @@ class RPCHost():
         self._session = requests.Session()
         try:
             with open('/home/'+USER+'/.bitcoin/bitcoin.conf') as fp:
-                RPCPORT="8332"
+                RPCPORT="12009"
                 RPCHOST="localhost"
                 RPCSSL=False
                 for line in fp:
                     #print line
                     if line.split('=')[0] == "testnet" and line.split('=')[1] == "1":
-                        RPCPORT="18332"
+                        RPCPORT="12009"
                     elif line.split('=')[0] == "rpcuser":
                         RPCUSER=line.split('=')[1].strip()
                     elif line.split('=')[0] == "rpcpassword":
@@ -31,24 +31,56 @@ class RPCHost():
             response='{"error": "Unable to load bitcoin config file. Please Notify Site Administrator"}'
             return response
         if RPCSSL:
+            self._hcwalletUrl = "https://"+RPCUSER+":"+RPCPASS+"@"+RPCHOST+":"+"12010"
             self._url = "https://"+RPCUSER+":"+RPCPASS+"@"+RPCHOST+":"+RPCPORT
         else:
             self._url = "http://"+RPCUSER+":"+RPCPASS+"@"+RPCHOST+":"+RPCPORT
+            self._hcwalletUrl = "http://"+RPCUSER+":"+RPCPASS+"@"+RPCHOST+":"+"12010"
         self._headers = {'content-type': 'application/json'}
     def call(self, rpcMethod, *params):
-        payload = json.dumps({"method": rpcMethod, "params": list(params), "jsonrpc": "2.0"})
+        print("-----begin to call:origin rpcMethod",rpcMethod)
+        print("origin params",params)
+        if (rpcMethod.find("_MP") > -1):
+            print("rpcMethod container _MP")
+            Method_split = rpcMethod.split("_")
+            rpcMethod = "omni_"+Method_split[0]
+            print("new rpcMethod",rpcMethod)
+        payload = json.dumps({"method": rpcMethod, "params": list(params), "jsonrpc": "2.0","id":0})
+        print ("rpcclient.py:",payload)
         tries = 10
         hadConnectionFailures = False
         while True:
             try:
-                response = self._session.post(self._url, headers=self._headers, data=payload, verify=False)
+                if (rpcMethod.find("omni") >-1):
+                    print("call hcwallet first")
+                    print("request method contain omni")
+                    response = self._session.post(self._hcwalletUrl, headers=self._headers, data=payload, verify=False)
+                    print("hcwallet response",response.json())
+                else:
+                    print("call hcd")
+                    print "self._url",self._url
+                    response = self._session.post(self._url, headers=self._headers, data=payload, verify=False)
             except requests.exceptions.ConnectionError:
-                tries -= 1
-                if tries == 0:
-                    raise Exception('Failed to connect for remote procedure call.')
-                hadFailedConnections = True
-                print("Couldn't connect for remote procedure call, will sleep for ten seconds and then try again ({} more tries)".format(tries))
-                time.sleep(10)
+                try:
+                    print("call hcwallet")
+                    response = self._session.post(self._hcwalletUrl, headers=self._headers, data=payload, verify=False)
+                except requests.exceptions.ConnectionError:
+                    tries -= 1
+                    if tries == 0:
+                        raise Exception('Failed to connect for remote procedure call.')
+                    hadFailedConnections = True
+                    print("Couldn't connect for remote procedure call, will sleep for ten seconds and then try again ({} more tries)".format(tries))
+                    time.sleep(10)
+                else:
+                    if hadConnectionFailures:
+                        print('Connected for remote procedure call after retry.')
+                    break
+                # tries -= 1
+                # if tries == 0:
+                #     raise Exception('Failed to connect for remote procedure call.')
+                # hadFailedConnections = True
+                # print("Couldn't connect for remote procedure call, will sleep for ten seconds and then try again ({} more tries)".format(tries))
+                # time.sleep(10)
             else:
                 if hadConnectionFailures:
                     print('Connected for remote procedure call after retry.')
@@ -117,7 +149,8 @@ def gettransaction_MP(tx):
     return host.call("gettransaction_MP", tx)
 
 def listblocktransactions_MP(height):
-    return host.call("listblocktransactions_MP", height)
+    return {"result": [tx["TxHash"] for tx in host.call("omni_listblocktransactions", height)["result"]]}
+    # return host.call("listblocktransactions_MP", height)
 
 def getproperty_MP(propertyid):
     return host.call("getproperty_MP", propertyid)

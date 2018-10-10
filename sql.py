@@ -969,7 +969,7 @@ def syncAddress(Address, Protocol):
 
     for property in baldata:
       PropertyID=property['propertyid']
-
+      Available = 0
       #get available/reserved balances
       if getdivisible_MP(PropertyID):
         Available=int(decimal.Decimal(str(property['balance']))*decimal.Decimal(1e8))
@@ -979,6 +979,7 @@ def syncAddress(Address, Protocol):
         Available=int(property['reserved'])
 
       #find accepted balances (if exists)
+      Accepted = 0
       for x in DExSales:
         if x['seller'] == Address and x['propertyid']==PropertyID:
           Accepted = x['amountaccepted']
@@ -1505,7 +1506,7 @@ def updateAddrStats(Address,Protocol,TxDBSerialNum,Block):
               "select %s,%s,1,%s,%s,CURRENT_TIMESTAMP(0) "
               "where not exists (select * from upsert) and not exists (select * from cexist)",
               (TxDBSerialNum, Block, Address, Protocol, TxDBSerialNum, Address, Protocol, Address, Protocol, TxDBSerialNum, Block) )
-
+    printdebug ("ending updateAddrStats",8)
 
 def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
     printdebug("Starting insertTxAddr:", 8)
@@ -1573,7 +1574,14 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
       BalanceAcceptedCreditDebit=None
       linkedtxdbserialnum=-1
       Address = rawtx['result']['sendingaddress']
-      #PropertyID=rawtx['result']['propertyid']
+      
+      try:
+        PropertyID=rawtx['result']['propertyid']
+      except Exception as e:
+        print "no field propertyid"
+        pass
+
+      print "PropertyID>>>"
       #update sender stats
       updateAddrStats(Address,Protocol,TxDBSerialNum,Block)
 
@@ -1616,6 +1624,13 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
 
 
       if txtype == 0:
+        print "enter into txtype==0"
+        try:
+          PropertyID = rawtx['result']['propertyid']
+        except Exception as e:
+          print "no field propertyid"
+          pass
+        
         #Simple Send
         BalanceAvailableCreditDebit=value_neg 
 
@@ -1642,6 +1657,7 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
 	#Restricted Send does nothing yet?
 
       elif txtype == 3:
+        print "enter into txtype == 3"
         #Send To Owners
         if Valid:
            #sendToOwners(Address, value, PropertyID, Protocol, TxDBSerialNum)
@@ -1688,6 +1704,7 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
         BalanceAvailableCreditDebit=value_neg
 
       elif txtype == 4:
+        print "enter into txtype==4"
         #Send all
         Valid=rawtx['result']['valid']
         Ecosystem=getEcosystem(rawtx['result']['ecosystem'])
@@ -1759,7 +1776,11 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
 
       elif txtype == 22:
         #DEx Accept Offer
-
+        print "enter into txtype == 22"
+        try:
+          PropertyID = rawtx['result']['propertyid']
+        except Exception as e:
+          pass
         #insert record for the buyer
         AddressRole='buyer'
         dbExecute("insert into addressesintxs "
@@ -1791,7 +1812,13 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
 
       elif txtype == -22:
         #DEx Accept Payment
-
+        print "enter into txtype=-22"
+        try:
+          PropertyID = rawtx['result']['propertyid']
+        except Exception as e:
+          print "no field propertyid"
+          pass
+        
         Buyer =  Address
         #process all purchases in the transaction 
         for payment in rawtx['result']['purchases']:
@@ -1854,6 +1881,13 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
         return
 
       elif txtype == 25:
+        print "enter info txtype == 25"
+        try:
+          PropertyID = rawtx['result']['propertyid']
+        except Exception as e:
+          print "no field propertyid"
+          pass
+
         #DEx Phase II: Offer/Accept one Omni Protocol Coin for another
         #Move the amount from Available balance to reserved for Offer
         ##Sell offer cancel doesn't display an amount from core, not sure what we do here yet
@@ -2000,6 +2034,13 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
         insertProperty(rawtx, Protocol)
 
       elif txtype == -51:
+        print "enter into txtype == -51"
+        try:
+          PropertyID = rawtx['result']['propertyid']
+        except Exception as e:
+          print "no field propertyid"
+          pass
+        
         #First deduct the amount the participant sent to 'buyin'  (BTC Amount might need to be excluded?)
         AddressRole = 'sender'
         BalanceAvailableCreditDebit = value_neg
@@ -2056,6 +2097,13 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
         #promote crowdsale does what?
 
       elif txtype == 53:
+        print "enter into txtype == 53"
+        try:
+          PropertyID = rawtx['result']['propertyid']
+        except Exception as e:
+          print "no field propertyid"
+          pass 
+      
         #Close Crowdsale
         AddressRole = "issuer"
         BalanceAvailableCreditDebit=None
@@ -2073,6 +2121,13 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
         insertProperty(rawtx, Protocol)
 
       elif txtype == 55:
+        print ">>>>enter into txtype=55"
+        try:
+          PropertyID = rawtx['result']['propertyid']
+        except Exception as e:
+          print "no field propertyid"
+          pass
+        
         #issue new tokens for a grant
         AddressRole = "issuer"
         BalanceAvailableCreditDebit=value
@@ -2125,7 +2180,14 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
           updateAddrStats(Address,Protocol,TxDBSerialNum,Block)
 
       elif txtype in [185,186]:
+        print "enter into txtype [185-186]"
         #update freeze info/balances
+        try:
+          PropertyID = rawtx['result']['propertyid']
+        except Exception as e:
+          print "no filed propertyid"
+          pass
+
         AddressRole = "issuer"
         BalanceAvailableCreditDebit=None
         BalanceReservedCreditDebit=None
@@ -2138,13 +2200,18 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
         Address = rawtx['result']['referenceaddress']
         AddressRole = 'recipient'
         updateAddrStats(Address,Protocol,TxDBSerialNum,Block)
-        
+        print "before rows select:",Address, PropertyID
         ROWS=dbSelect("select BalanceAvailable,BalanceFrozen from addressbalances where address=%s and propertyid=%s", (Address, PropertyID))
-
+        print (ROWS)
         if txtype == 185:
+          print ("enter txtype == 185")
           BalanceAvailableCreditDebit = -int(ROWS[0][0])
-          BalanceFrozenCreditDebit = (BalanceAvailableCreditDebit*-1)
+          BalanceFrozenCreditDebit = (BalanceAvailableCreditDebit*-1-1)
         elif txtype == 186:
+          print ("enter txtype == 186")
+        
+          # BalanceFrozenCreditDebit = (BalanceAvailableCreditDebit*-1)
+          # print BalanceFrozenCreditDebit
           BalanceAvailableCreditDebit = int(ROWS[0][1])
           BalanceFrozenCreditDebit = (BalanceAvailableCreditDebit*-1)
 
@@ -2174,6 +2241,7 @@ def insertTxAddr(rawtx, Protocol, TxDBSerialNum, Block):
       if Valid:
         updateBalance(Address, Protocol, PropertyID, Ecosystem, BalanceAvailableCreditDebit, BalanceReservedCreditDebit, BalanceAcceptedCreditDebit, TxDBSerialNum)
 
+      print "ending insertTxAddr"
 
 def insertTx(rawtx, Protocol, blockheight, seq, TxDBSerialNum):
     printdebug("Starting insertTx:", 8)
